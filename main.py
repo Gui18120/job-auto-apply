@@ -75,13 +75,41 @@ def run_cycle():
             continue
 
         new_jobs = [j for j in jobs if not already_applied(j["id"])]
-        print(f"[Main] {len(new_jobs)} vagas novas no {platform.upper()}")
+
+        # Filtro de localização: presencial só em Salvador/BA; remoto/híbrido em qualquer lugar
+        def location_ok(job):
+            mode = job.get("mode", "").lower()
+            location = job.get("location", "").lower()
+            if mode in ("remote", "remoto", "home office"):
+                return True
+            if mode in ("hybrid", "híbrido", "hibrido"):
+                return True
+            # presencial: só aceita Salvador ou BA
+            if "salvador" in location or (", ba" in location) or ("bahia" in location):
+                return True
+            return False
+
+        filtered_jobs = [j for j in new_jobs if location_ok(j)]
+        skipped = len(new_jobs) - len(filtered_jobs)
+        print(f"[Main] {len(filtered_jobs)} vagas novas no {platform.upper()} ({skipped} fora de Salvador ignoradas)")
 
         applier = get_applier(platform)
 
-        for job in new_jobs:
-            if not job.get("title"):
+        for job in filtered_jobs:
+            if not job.get("title") or not job.get("url"):
                 continue
+
+            # Verifica se a vaga ainda existe (evita 404)
+            try:
+                check = __import__("requests").head(job["url"], timeout=(5, 8), allow_redirects=True)
+                if check.status_code == 404:
+                    print(f"  [!] Vaga encerrada (404), pulando: {job['url']}")
+                    save_application(job_id=job["id"], job_title=job["title"], company=job["company"],
+                                     platform=platform, url=job["url"], location=job.get("location", ""),
+                                     mode=job.get("mode", ""), status="closed")
+                    continue
+            except Exception:
+                pass
 
             print(f"\n  -> {job['title']} @ {job['company']} | {job.get('mode', '')} | {job.get('location', '')}")
             print(f"     URL: {job['url']}")
