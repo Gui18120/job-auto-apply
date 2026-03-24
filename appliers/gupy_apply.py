@@ -53,7 +53,13 @@ def apply(job: dict) -> bool:
                 page.wait_for_load_state("domcontentloaded", timeout=30000)
                 time.sleep(3)
 
-            # 3. Clica em Candidatar-se
+            # 3. Verifica se a vaga está encerrada
+            if page.locator(':has-text("Candidaturas encerradas"), :has-text("vaga encerrada"), :has-text("encerrada")').count() > 0:
+                print(f"[Gupy] Vaga encerrada, pulando: {job['url']}")
+                browser.close()
+                return False
+
+            # 4. Clica em Candidatar-se
             apply_btn = page.locator('button:has-text("Candidatar"), a:has-text("Candidatar")')
             if apply_btn.count() == 0:
                 print(f"[Gupy] Botão de candidatura não encontrado: {job['url']}")
