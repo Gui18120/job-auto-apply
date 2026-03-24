@@ -1,8 +1,6 @@
 """
-Scraper para vagas no Glassdoor via scraping público.
+Scraper para vagas no Glassdoor via Playwright (JS-heavy).
 """
-import requests
-from bs4 import BeautifulSoup
 import yaml
 import os
 import time
@@ -16,71 +14,83 @@ def load_config():
 
 
 def search_jobs() -> list[dict]:
+    from playwright.sync_api import sync_playwright
+
     config = load_config()
     keywords = config["search"]["keywords"]
     jobs = []
     seen_ids = set()
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept-Language": "pt-BR,pt;q=0.9",
-    }
+    search_locations = ["Salvador, Bahia", "Brasil", "Remote"]
 
-    search_locations = ["Salvador, Bahia, Brasil", "Brasil", "Remote"]
-
-    for keyword in keywords[:5]:
-        for location in search_locations:
-            url = (
-                "https://www.glassdoor.com.br/Vagas/index.htm"
-                f"?sc.keyword={requests.utils.quote(keyword)}"
-                f"&locT=C&locKeyword={requests.utils.quote(location)}"
-                "&sortBy=date_desc"
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        ctx = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
             )
-            try:
-                resp = requests.get(url, headers=headers, timeout=(5, 15))
-                if resp.status_code != 200:
-                    continue
+        )
+        page = ctx.new_page()
 
-                soup = BeautifulSoup(resp.text, "html.parser")
-                cards = soup.select("li.react-job-listing, div[data-test='jobListing']")
+        for keyword in keywords[:4]:
+            for location in search_locations:
+                try:
+                    url = (
+                        "https://www.glassdoor.com.br/Emprego/vagas.htm"
+                        f"?sc.keyword={keyword.replace(' ', '+')}"
+                        f"&locT=N&locKeyword={location.replace(' ', '+')}"
+                        "&sortBy=date_desc"
+                    )
+                    page.goto(url, timeout=30000)
+                    page.wait_for_load_state("domcontentloaded", timeout=20000)
+                    time.sleep(2)
 
-                for card in cards:
-                    link = card.select_one("a[data-test='job-link'], a.jobLink")
-                    title = card.select_one("[data-test='job-title'], .job-title")
-                    company = card.select_one("[data-test='employer-name'], .employer-name")
-                    loc = card.select_one("[data-test='emp-location'], .location")
+                    cards = page.locator("li[data-test='jobListing'], article.job-listing").all()
 
-                    if not link:
-                        continue
+                    for card in cards:
+                        try:
+                            link = card.locator("a").first
+                            href = link.get_attribute("href") or ""
+                            title = card.locator("[data-test='job-title'], .job-title").first
+                            company = card.locator("[data-test='employer-name'], .employer-name").first
+                            loc = card.locator("[data-test='emp-location'], .location").first
 
-                    job_url = "https://www.glassdoor.com.br" + link.get("href", "")
-                    job_id = f"glassdoor_{abs(hash(job_url))}"
+                            if not href:
+                                continue
 
-                    if job_id in seen_ids:
-                        continue
-                    seen_ids.add(job_id)
+                            job_url = "https://www.glassdoor.com.br" + href if href.startswith("/") else href
+                            job_id = f"glassdoor_{abs(hash(job_url))}"
 
-                    mode = "remote" if "remote" in location.lower() or "remoto" in (loc.text if loc else "").lower() else "on-site"
+                            if job_id in seen_ids:
+                                continue
+                            seen_ids.add(job_id)
 
-                    jobs.append({
-                        "id": job_id,
-                        "title": title.text.strip() if title else "",
-                        "company": company.text.strip() if company else "",
-                        "location": loc.text.strip() if loc else location,
-                        "mode": mode,
-                        "url": job_url,
-                        "platform": "glassdoor",
-                        "description": "",
-                    })
+                            title_text = title.inner_text() if title.count() > 0 else keyword
+                            company_text = company.inner_text() if company.count() > 0 else ""
+                            loc_text = loc.inner_text() if loc.count() > 0 else location
+                            mode = "remote" if "remoto" in loc_text.lower() or "remote" in location.lower() else "on-site"
 
-                time.sleep(2)
+                            jobs.append({
+                                "id": job_id,
+                                "title": title_text.strip(),
+                                "company": company_text.strip(),
+                                "location": loc_text.strip(),
+                                "mode": mode,
+                                "url": job_url,
+                                "platform": "glassdoor",
+                                "description": "",
+                            })
+                        except Exception:
+                            continue
 
-            except Exception as e:
-                print(f"[Glassdoor] Erro ao buscar '{keyword}' em '{location}': {e}")
+                    time.sleep(2)
+
+                except Exception as e:
+                    print(f"[Glassdoor] Erro ao buscar '{keyword}' em '{location}': {e}")
+
+        browser.close()
 
     print(f"[Glassdoor] {len(jobs)} vagas encontradas")
     return jobs

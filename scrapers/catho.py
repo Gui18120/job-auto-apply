@@ -1,7 +1,8 @@
 """
-Scraper para vagas no Catho via API interna.
+Scraper para vagas no Catho via scraping HTML.
 """
 import requests
+from bs4 import BeautifulSoup
 import yaml
 import os
 import time
@@ -14,67 +15,68 @@ def load_config():
         return yaml.safe_load(f)
 
 
-# IDs de estado no Catho (BA = 5)
-CATHO_STATE_MAP = {
-    "BA": 5,
-    "SP": 27,
-    "RJ": 21,
-}
-
-
 def search_jobs() -> list[dict]:
     config = load_config()
     keywords = config["search"]["keywords"]
-    state_code = config["search"]["location"].get("states", ["BA"])[0]
-    state_id = CATHO_STATE_MAP.get(state_code, 5)
     jobs = []
     seen_ids = set()
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
-        "Accept": "application/json",
-        "Referer": "https://www.catho.com.br/",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "pt-BR,pt;q=0.9",
     }
 
-    for keyword in keywords[:5]:
+    for keyword in keywords[:6]:
         try:
-            params = {
-                "q": keyword,
-                "state_id": state_id,
-                "sort": "date",
-                "page": 1,
-                "limit": 20,
-            }
-            resp = requests.get(
-                "https://www.catho.com.br/api/v2/jobs/search",
-                params=params,
-                headers=headers,
-                timeout=15,
-            )
-
+            url = f"https://www.catho.com.br/vagas/?q={requests.utils.quote(keyword)}&ordenar=recentes"
+            resp = requests.get(url, headers=headers, timeout=(5, 15))
             if resp.status_code != 200:
                 print(f"[Catho] Status {resp.status_code} para '{keyword}'")
                 continue
 
-            data = resp.json()
-            for job in data.get("data", {}).get("jobs", []):
-                job_id = f"catho_{job.get('id', '')}"
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            cards = soup.select("article, div[class*='job-card'], li[class*='job']")
+            if not cards:
+                # fallback: tenta qualquer link de vaga
+                cards = soup.select("a[href*='/vagas/']")
+
+            for card in cards:
+                link = card if card.name == "a" else card.select_one("a[href*='/vagas/']")
+                if not link:
+                    continue
+
+                href = link.get("href", "")
+                if not href or href == "/vagas/":
+                    continue
+
+                job_url = href if href.startswith("http") else f"https://www.catho.com.br{href}"
+                job_id = f"catho_{abs(hash(job_url))}"
+
                 if job_id in seen_ids:
                     continue
                 seen_ids.add(job_id)
 
+                title = card.select_one("h2, h3, [class*='title']")
+                company = card.select_one("[class*='company'], [class*='empresa']")
+                location = card.select_one("[class*='location'], [class*='cidade']")
+
                 jobs.append({
                     "id": job_id,
-                    "title": job.get("title", ""),
-                    "company": job.get("company", {}).get("name", "Confidencial"),
-                    "location": job.get("city", "") + ", " + state_code,
-                    "mode": job.get("workplace_type", ""),
-                    "url": f"https://www.catho.com.br/vagas/{job.get('slug', '')}",
+                    "title": title.text.strip() if title else keyword,
+                    "company": company.text.strip() if company else "",
+                    "location": location.text.strip() if location else "Brasil",
+                    "mode": "remote" if "remoto" in (location.text if location else "").lower() else "on-site",
+                    "url": job_url,
                     "platform": "catho",
-                    "description": job.get("description", ""),
+                    "description": "",
                 })
 
-            time.sleep(1.5)
+            time.sleep(2)
 
         except Exception as e:
             print(f"[Catho] Erro ao buscar '{keyword}': {e}")
