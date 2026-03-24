@@ -59,7 +59,7 @@ def get_applier(platform: str):
 
 def run_cycle():
     config = load_config()
-    platforms = ["indeed", "glassdoor", "catho", "gupy", "linkedin"]
+    platforms = ["gupy", "linkedin"]
     total_applied = 0
 
     print("\n" + "="*60)

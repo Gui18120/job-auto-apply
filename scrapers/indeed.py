@@ -50,6 +50,7 @@ def search_jobs() -> list[dict]:
                 time.sleep(2)
 
                 cards = page.locator("div.job_seen_beacon, div[data-jk]").all()
+                print(f"[Indeed] '{keyword}' em '{city}': {len(cards)} cards encontrados | título da página: {page.title()[:60]}")
 
                 for card in cards:
                     try:
