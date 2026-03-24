@@ -22,6 +22,7 @@ def search_jobs() -> list[dict]:
     seen_ids = set()
 
     for keyword in keywords:
+        print(f"[Gupy] Buscando: '{keyword}'...")
         for city in cities + [None]:  # busca com e sem filtro de cidade
             params = {
                 "jobName": keyword,
@@ -37,7 +38,7 @@ def search_jobs() -> list[dict]:
                     "https://portal.api.gupy.io/api/v1/jobs",
                     params=params,
                     headers={"User-Agent": "Mozilla/5.0"},
-                    timeout=15,
+                    timeout=(5, 10),
                 )
                 if resp.status_code != 200:
                     print(f"[Gupy] Status {resp.status_code} para '{keyword}'")
