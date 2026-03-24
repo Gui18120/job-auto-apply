@@ -26,7 +26,9 @@ def load_config():
 
 
 def get_scraper(platform: str):
-    if platform == "glassdoor":
+    if platform == "indeed":
+        from scrapers.indeed import search_jobs
+    elif platform == "glassdoor":
         from scrapers.glassdoor import search_jobs
     elif platform == "catho":
         from scrapers.catho import search_jobs
@@ -40,7 +42,9 @@ def get_scraper(platform: str):
 
 
 def get_applier(platform: str):
-    if platform == "glassdoor":
+    if platform == "indeed":
+        from appliers.indeed_apply import apply
+    elif platform == "glassdoor":
         from appliers.glassdoor_apply import apply
     elif platform == "catho":
         from appliers.catho_apply import apply
@@ -55,7 +59,7 @@ def get_applier(platform: str):
 
 def run_cycle():
     config = load_config()
-    platforms = ["glassdoor", "catho", "gupy", "linkedin"]
+    platforms = ["indeed", "glassdoor", "catho", "gupy", "linkedin"]
     total_applied = 0
 
     print("\n" + "="*60)
