@@ -75,9 +75,9 @@ def apply(job: dict) -> bool:
                 print("[LinkedIn] Sessão salva. Próximas execuções usarão cookies.")
 
             # 2. Acessa a vaga
-            page.goto(job["url"], timeout=30000)
-            page.wait_for_load_state("domcontentloaded", timeout=20000)
-            time.sleep(2)
+            page.goto(job["url"], timeout=60000)
+            page.wait_for_load_state("domcontentloaded", timeout=30000)
+            time.sleep(3)
 
             # 3. Clica em Candidatura Simplificada (Easy Apply)
             easy_btn = page.locator('button:has-text("Candidatura simplificada")')

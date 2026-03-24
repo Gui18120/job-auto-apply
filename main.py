@@ -89,8 +89,15 @@ def run_cycle():
         ]
 
         BLOCKED_TITLE_WORDS = [
+            # vagas femininas
             "mulheres", "mujeres", "feminino", "mulher", "women", "female",
             "diversity women", "para mulheres",
+            # automação industrial / elétrica (não é TI)
+            "eletricista", "instrumentação", "instrumentacao", "manutenção elétrica",
+            "manutencao eletrica", "técnico de campo", "tecnico de campo",
+            "técnico eletrico", "tecnico eletrico", "operador de", "soldador",
+            "mecânico", "mecanico", "caldeireiro", "tubulador", "inspetor de",
+            "técnico em eletrônica", "técnico em eletrotécnica",
         ]
 
         def location_ok(job):
