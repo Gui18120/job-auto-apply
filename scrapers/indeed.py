@@ -1,8 +1,6 @@
 """
-Scraper para vagas no Indeed Brasil.
+Scraper para vagas no Indeed Brasil via Playwright.
 """
-import requests
-from bs4 import BeautifulSoup
 import yaml
 import os
 import time
@@ -16,76 +14,87 @@ def load_config():
 
 
 def search_jobs() -> list[dict]:
+    from playwright.sync_api import sync_playwright
+
     config = load_config()
     keywords = config["search"]["keywords"]
-    cities = config["search"]["location"].get("cities", [])
+    cities = config["search"]["location"].get("cities", ["Salvador"])
     jobs = []
     seen_ids = set()
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept-Language": "pt-BR,pt;q=0.9",
-    }
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        ctx = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            locale="pt-BR",
+        )
+        page = ctx.new_page()
 
-    for keyword in keywords[:5]:
-        for city in cities:
-            params = {
-                "q": keyword,
-                "l": city,
-                "sort": "date",
-                "fromage": "7",  # últimos 7 dias
-            }
+        search_targets = [(kw, city) for kw in keywords[:5] for city in cities] + \
+                         [(kw, "") for kw in keywords[:5]]  # sem cidade = remoto
+
+        for keyword, city in search_targets:
             try:
-                resp = requests.get(
-                    "https://br.indeed.com/jobs",
-                    params=params,
-                    headers=headers,
-                    timeout=15,
-                )
-                if resp.status_code != 200:
-                    print(f"[Indeed] Status {resp.status_code}")
-                    continue
+                import requests as _r
+                params = f"q={_r.utils.quote(keyword)}&sort=date&fromage=30"
+                if city:
+                    params += f"&l={_r.utils.quote(city)}"
+                url = f"https://br.indeed.com/jobs?{params}"
 
-                soup = BeautifulSoup(resp.text, "lxml")
-                cards = soup.select("div.job_seen_beacon")
+                page.goto(url, timeout=30000)
+                page.wait_for_load_state("domcontentloaded", timeout=20000)
+                time.sleep(2)
+
+                cards = page.locator("div.job_seen_beacon, div[data-jk]").all()
 
                 for card in cards:
-                    job_id_tag = card.get("data-jk") or card.select_one("[data-jk]")
-                    title_tag = card.select_one("h2.jobTitle span[title]")
-                    company_tag = card.select_one("span.companyName")
-                    location_tag = card.select_one("div.companyLocation")
+                    try:
+                        raw_id = card.get_attribute("data-jk") or ""
+                        if not raw_id:
+                            link = card.locator("a[data-jk]").first
+                            raw_id = link.get_attribute("data-jk") or "" if link.count() > 0 else ""
 
-                    raw_id = (
-                        card.get("data-jk")
-                        or (job_id_tag.get("data-jk") if hasattr(job_id_tag, "get") else None)
-                    )
-                    if not raw_id:
+                        if not raw_id:
+                            continue
+
+                        job_id = f"indeed_{raw_id}"
+                        if job_id in seen_ids:
+                            continue
+                        seen_ids.add(job_id)
+
+                        title = card.locator("h2.jobTitle span[title], h2.jobTitle").first
+                        company = card.locator("span.companyName, [data-testid='company-name']").first
+                        location = card.locator("div.companyLocation, [data-testid='text-location']").first
+
+                        title_text = title.inner_text().strip() if title.count() > 0 else keyword
+                        company_text = company.inner_text().strip() if company.count() > 0 else ""
+                        location_text = location.inner_text().strip() if location.count() > 0 else city
+
+                        mode = "remote" if not city or "remoto" in location_text.lower() or "home office" in location_text.lower() else "on-site"
+
+                        jobs.append({
+                            "id": job_id,
+                            "title": title_text,
+                            "company": company_text,
+                            "location": location_text,
+                            "mode": mode,
+                            "url": f"https://br.indeed.com/viewjob?jk={raw_id}",
+                            "platform": "indeed",
+                            "description": "",
+                        })
+                    except Exception:
                         continue
-
-                    job_id = f"indeed_{raw_id}"
-                    if job_id in seen_ids:
-                        continue
-                    seen_ids.add(job_id)
-
-                    jobs.append({
-                        "id": job_id,
-                        "title": title_tag.get("title", "").strip() if title_tag else "",
-                        "company": company_tag.text.strip() if company_tag else "",
-                        "location": location_tag.text.strip() if location_tag else city,
-                        "mode": "",
-                        "url": f"https://br.indeed.com/viewjob?jk={raw_id}",
-                        "platform": "indeed",
-                        "description": "",
-                    })
 
                 time.sleep(2)
 
             except Exception as e:
                 print(f"[Indeed] Erro ao buscar '{keyword}' em '{city}': {e}")
+
+        browser.close()
 
     print(f"[Indeed] {len(jobs)} vagas encontradas")
     return jobs
