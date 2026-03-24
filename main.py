@@ -76,7 +76,19 @@ def run_cycle():
 
         new_jobs = [j for j in jobs if not already_applied(j["id"])]
 
-        # Filtro de localização: presencial só em Salvador/BA; remoto/híbrido em qualquer lugar
+        BAHIA_CITIES = [
+            "salvador", "feira de santana", "camaçari", "camaçari", "lauro de freitas",
+            "simões filho", "simoes filho", "vitória da conquista", "vitoria da conquista",
+            "ilhéus", "ilheus", "itabuna", "juazeiro", "barreiras", "porto seguro",
+            "dias d'ávila", "dias d avila", "candeias", "santo antônio de jesus",
+            "santo antonio de jesus", ", ba", "bahia",
+        ]
+
+        BLOCKED_TITLE_WORDS = [
+            "mulheres", "mujeres", "feminino", "mulher", "women", "female",
+            "diversity women", "para mulheres",
+        ]
+
         def location_ok(job):
             mode = job.get("mode", "").lower()
             location = job.get("location", "").lower()
@@ -84,12 +96,14 @@ def run_cycle():
                 return True
             if mode in ("hybrid", "híbrido", "hibrido"):
                 return True
-            # presencial: só aceita Salvador ou BA
-            if "salvador" in location or (", ba" in location) or ("bahia" in location):
-                return True
-            return False
+            # presencial ou sem info: só Bahia
+            return any(c in location for c in BAHIA_CITIES)
 
-        filtered_jobs = [j for j in new_jobs if location_ok(j)]
+        def title_ok(job):
+            title = job.get("title", "").lower()
+            return not any(w in title for w in BLOCKED_TITLE_WORDS)
+
+        filtered_jobs = [j for j in new_jobs if location_ok(j) and title_ok(j)]
         skipped = len(new_jobs) - len(filtered_jobs)
         print(f"[Main] {len(filtered_jobs)} vagas novas no {platform.upper()} ({skipped} fora de Salvador ignoradas)")
 
