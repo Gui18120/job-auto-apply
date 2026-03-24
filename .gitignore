@@ -1,5 +1,6 @@
 config.yaml
 tracker.db
+linkedin_cookies.json
 __pycache__/
 *.pyc
 .env

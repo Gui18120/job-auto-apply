@@ -41,21 +41,43 @@ def apply(job: dict) -> bool:
         ctx = browser.new_context()
         page = ctx.new_page()
 
-        try:
-            # 1. Login no LinkedIn
-            page.goto("https://www.linkedin.com/login", timeout=20000)
-            page.fill('#username', creds["email"])
-            page.fill('#password', creds["password"])
-            page.click('button[type="submit"]')
-            page.wait_for_load_state("networkidle", timeout=20000)
+        COOKIES_PATH = os.path.join(os.path.dirname(CONFIG_PATH), "linkedin_cookies.json")
 
-            if "checkpoint" in page.url or "login" in page.url:
-                print("[LinkedIn] Verificação extra necessária. Conclua manualmente e reexecute.")
-                input("Pressione Enter após resolver o captcha/verificação...")
+        try:
+            # 1. Login no LinkedIn — usa cookies salvos se existirem
+            import json
+            if os.path.exists(COOKIES_PATH):
+                with open(COOKIES_PATH, encoding="utf-8") as f:
+                    ctx.add_cookies(json.load(f))
+                page.goto("https://www.linkedin.com/feed", timeout=30000)
+                page.wait_for_load_state("domcontentloaded", timeout=20000)
+            else:
+                page.goto("https://www.linkedin.com/login", timeout=30000)
+                page.wait_for_load_state("domcontentloaded", timeout=20000)
+
+            # Se não estiver logado, faz login manual
+            if "feed" not in page.url and "jobs" not in page.url:
+                page.goto("https://www.linkedin.com/login", timeout=30000)
+                page.fill('#username', creds["email"])
+                page.fill('#password', creds["password"])
+                page.click('button[type="submit"]')
+                page.wait_for_load_state("domcontentloaded", timeout=30000)
+                time.sleep(3)
+
+                if "checkpoint" in page.url or "login" in page.url:
+                    print("[LinkedIn] Complete o login manualmente no navegador que abriu.")
+                    input("Pressione Enter após fazer login...")
+
+                # Salva cookies para próximas execuções
+                cookies = ctx.cookies()
+                with open(COOKIES_PATH, "w", encoding="utf-8") as f:
+                    json.dump(cookies, f)
+                print("[LinkedIn] Sessão salva. Próximas execuções usarão cookies.")
 
             # 2. Acessa a vaga
-            page.goto(job["url"], timeout=20000)
-            page.wait_for_load_state("networkidle", timeout=15000)
+            page.goto(job["url"], timeout=30000)
+            page.wait_for_load_state("domcontentloaded", timeout=20000)
+            time.sleep(2)
 
             # 3. Clica em Candidatura Simplificada (Easy Apply)
             easy_btn = page.locator('button:has-text("Candidatura simplificada")')
