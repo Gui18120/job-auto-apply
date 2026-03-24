@@ -26,28 +26,28 @@ def load_config():
 
 
 def get_scraper(platform: str):
-    if platform == "gupy":
+    if platform == "glassdoor":
+        from scrapers.glassdoor import search_jobs
+    elif platform == "catho":
+        from scrapers.catho import search_jobs
+    elif platform == "gupy":
         from scrapers.gupy import search_jobs
     elif platform == "linkedin":
         from scrapers.linkedin import search_jobs
-    elif platform == "indeed":
-        from scrapers.indeed import search_jobs
-    elif platform == "catho":
-        from scrapers.catho import search_jobs
     else:
         return None
     return search_jobs
 
 
 def get_applier(platform: str):
-    if platform == "gupy":
+    if platform == "glassdoor":
+        from appliers.glassdoor_apply import apply
+    elif platform == "catho":
+        from appliers.catho_apply import apply
+    elif platform == "gupy":
         from appliers.gupy_apply import apply
     elif platform == "linkedin":
         from appliers.linkedin_apply import apply
-    elif platform == "catho":
-        from appliers.catho_apply import apply
-    elif platform == "indeed":
-        from appliers.indeed_apply import apply
     else:
         return None
     return apply
@@ -55,7 +55,7 @@ def get_applier(platform: str):
 
 def run_cycle():
     config = load_config()
-    platforms = ["gupy", "linkedin", "indeed", "catho"]
+    platforms = ["glassdoor", "catho", "gupy", "linkedin"]
     total_applied = 0
 
     print("\n" + "="*60)
