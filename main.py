@@ -98,6 +98,10 @@ def run_cycle():
             "técnico eletrico", "tecnico eletrico", "operador de", "soldador",
             "mecânico", "mecanico", "caldeireiro", "tubulador", "inspetor de",
             "técnico em eletrônica", "técnico em eletrotécnica",
+            # nível sênior e pleno
+            "sênior", "senior", "sênior", "sr.", " sr ", "pleno", " pl ", "pl.",
+            "especialista", "coordenador", "gerente", "diretor", "head de",
+            "lead ", "tech lead", "arquiteto",
         ]
 
         def location_ok(job):
