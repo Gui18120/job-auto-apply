@@ -27,20 +27,31 @@ def apply(job: dict) -> bool:
         page = ctx.new_page()
 
         try:
-            # 1. Login no portal Gupy
-            page.goto("https://portal.gupy.io/login", timeout=20000)
-            page.fill('input[name="email"]', creds["email"])
-            page.fill('input[name="password"]', creds["password"])
-            page.click('button[type="submit"]')
-            page.wait_for_load_state("networkidle", timeout=15000)
+            # 1. Vai direto para a vaga
+            page.goto(job["url"], timeout=60000)
+            page.wait_for_load_state("domcontentloaded", timeout=30000)
+            time.sleep(3)
 
-            if "login" in page.url:
-                print("[Gupy] Falha no login. Verifique email/senha no config.yaml")
-                return False
+            # 2. Se pedir login, faz login na página da empresa
+            if page.locator('input[name="email"]').count() > 0:
+                page.fill('input[name="email"]', creds["email"])
+                page.fill('input[name="password"]', creds["password"])
+                page.click('button[type="submit"]')
+                page.wait_for_load_state("domcontentloaded", timeout=30000)
+                time.sleep(3)
 
-            # 2. Navega para a vaga
-            page.goto(job["url"], timeout=20000)
-            page.wait_for_load_state("networkidle", timeout=15000)
+            # 3. Se ainda redirecionar para login, tenta pelo portal geral
+            if "login" in page.url or page.locator('input[name="email"]').count() > 0:
+                page.goto("https://portal.gupy.io/login", timeout=60000)
+                page.wait_for_selector('input[name="email"]', timeout=30000)
+                page.fill('input[name="email"]', creds["email"])
+                page.fill('input[name="password"]', creds["password"])
+                page.click('button[type="submit"]')
+                page.wait_for_load_state("domcontentloaded", timeout=30000)
+                time.sleep(3)
+                page.goto(job["url"], timeout=60000)
+                page.wait_for_load_state("domcontentloaded", timeout=30000)
+                time.sleep(3)
 
             # 3. Clica em Candidatar-se
             apply_btn = page.locator('button:has-text("Candidatar"), a:has-text("Candidatar")')
