@@ -50,7 +50,7 @@ def search_jobs() -> list[dict]:
                     if resp.status_code != 200:
                         continue
 
-                    soup = BeautifulSoup(resp.text, "lxml")
+                    soup = BeautifulSoup(resp.text, "html.parser")
                     cards = soup.select("div.base-card")
 
                     for card in cards:
